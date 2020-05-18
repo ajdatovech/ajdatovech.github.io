@@ -1,0 +1,494 @@
+## Big Ten East Football Recruiting: An Analysis, Spring 2020
+
+---
+output:
+  html_document: default
+  word_document: default
+---
+```{r knitr_setup, echo=FALSE}
+knitr::opts_chunk$set(cache=TRUE, root.dir="C:/Users/ajdat/Documents/R/")
+```
+
+By Andrew Datovech for CMSC320
+
+![Queen Elizabeth II attends a Maryland football game.](QueenElizabethMarylandFootball.jpg)
+[Queen Elizabeth II attends a Maryland Terrapins football game at Maryland Stadium.](https://umdarchives.wordpress.com/tag/queens-game/#jp-carousel-11536)
+
+## Introduction
+
+To call me a die-hard Maryland Terrapins football fan would be an understatement. Despite the team's abysmal record during my two years at the university, earning a combined win-loss record of [8-16](https://www.sports-reference.com/cfb/schools/maryland/index.html), I have attended each game (yes, even the Penn State game) in the desperate hopes of witnessing a bowl-game season. Perhaps I was conditioned improperly: my first game as a freshman was a [weather-delayed](https://www.espn.com/college-football/game?gameId=401012872) break from reality. Maryland beat ranked Texas for the second year in a row to sweep their series, in a game played halfway around the Beltway from campus. I am not kidding when I mention the "die-hard" aspect of my fandom, either, as my 2019 season began with a trip to the emergency room, after watching the Terrapins' 79-0 dismantling of Howard University resulted in severe heat illness. (You can see me, doomed to puke my guts out, right behind Coach Locksley at the 49:00 mark of [this video.](https://www.youtube.com/watch?v=Lssz5hxXRGk))
+
+For those of you that care little for college football, and even less for Maryland football, I am sure that this project seems to provide little value at first glance. However, I want to provide an accessible view into the data science pipeline for fans of college athletics, as the marriage of sports and data science has yielded some [awesome results](https://fivethirtyeight.com/sports/). 
+
+## Necessary Information
+
+This analysis was performed in the [R programming language](https://en.wikipedia.org/wiki/R_language), which is a programming language for statistics and data analysis. Specifically, RStudio was used to "knit", or run and output the results of, my RMarkdown document that contains code and text to HTML. HTML is the webpage format that your browser most commonly uses.
+
+The University of Maryland plays football in the [Big Ten](https://www.sports-reference.com/cfb/conferences/big-ten/2019.html) athletic conference. Despite its confusing name, the "Big Ten" has 14 universities that compete in football. Since the regular season in college football lasts for only 12 games, each school can not play all of the other members each year. Thus, the conference splits into two "divisions" of seven schools by geography, [East and West](https://www.sports-reference.com/cfb/conferences/big-ten/2019.html). This groups Maryland in the East division with Ohio State, Penn State, Michigan, Indiana, Michigan State, and Rutgers, against whom Maryland must play each season. Since this is the only constant between all of these teams' schedules, the number of division wins in a given year (0-6) can be defined as the metric of success. 
+
+## The Problem
+
+As mentioned, Maryland has only won one-third of their football games played during my time as a student, and I want to help explain this relative lack of performance. In CMSC320, we explored how in-game performance in the sport of baseball can be used to demonstrate a player's [future value](https://www.hcbravo.org/IntroDataSci/projects/project2/). Instead of focusing on retrospective indicators (touchdowns scored, quarterback rating, turnover ratio, etc.), I chose to investigate something else: indicators of recruiting success. 
+
+In college football, as in other sports, the business of assessing, attracting, and enrolling future star athletes is a [massive and often ethically questionable](https://www.bannersociety.com/2014/4/10/20703758/bag-man-paying-college-football-players) program function. In fact, large sports journalism sources like ESPN [charge fans](http://insider.espn.com/college-sports/football/recruiting/classrankings/rank/_/rank/5/class/2021/date/20200512) to access "insider" data on teams' win prospects. A star system of ranking recruits has arisen to "solve" this problem, in which sports journalists and scouts rank incoming college players according to the following rating system (with examples provided):
+
+[5 stars](https://247sports.com/Player/Caleb-Williams-46040610/): A rising star at the college level. Likely to play professional football.
+
+[4 stars](https://247sports.com/player/demeioun-robinson-46082055/): A starting roster-quality player at the college level. A good chance to play professional football.
+
+[3/2 stars](https://247sports.com/player/weston-wolff-46058901/): A scholarship-quality player at the college level. Unlikely to play professional football.
+
+The key question, then, is this: What indicators, if any, in a Big Ten East team's recruiting ratings influence its ability to win games?  
+
+## Part 1: Data Scraping and Cleaning
+
+CBS Sports' aptly named "247Sports" consolidates college recruits' star ratings into a single, [composite](https://247sports.com/Season/2015-Football/CompositeTeamRankings/?Conference=Big-Ten) star rating, and combines these scores across teams to calculate teams' recruiting class ranking, as well as an overall roster talent ranking. Let's scrape this data for the past five seasons (2015-2019), and learn some more about data science in the process. I added prose comments in each chunk to help you follow along. 
+
+```{r scrape_2015, include=TRUE}
+library(stringr)
+library(tidyverse)
+# A data processing library
+library(rvest)
+# A Web scraping library
+library(dplyr)
+# A data "pipeline" library that helps us modify and transform data structures
+url <- "https://247sports.com/Season/2015-Football/CollegeTeamTalentComposite/?Conference=Big-Ten"
+team_names2015 <- url %>%
+  read_html() %>%
+  html_nodes(xpath='//*[@class="team"]') %>%
+  html_text()
+team_names2015 <- c(team_names2015)
+team_names2015 <- team_names2015[-1]
+# The scraped team names:
+team_names2015
+commit_count2015 <- url %>%
+  read_html() %>%
+  html_nodes(xpath='//*[@class="total"]') %>%
+  html_text()
+commit_count2015 <- c(commit_count2015)
+commit_count2015 <- commit_count2015[-1]
+# The total number of scholarship players. Oh no! This formatted as a string? We'll deal with this later.
+commit_count2015
+star_count2015 <- url %>%
+  read_html() %>%
+  html_nodes(xpath='//*[@class="star-commits-list"]') %>%
+  html_text()
+star_count2015 <- c(star_count2015)
+# This data set is not very "tidy" - one string, with inconsistent spacing, for three attributes? We will need to clean this attribute as well.
+star_count2015
+avg2015 <- url %>%
+  read_html() %>%
+  html_nodes(xpath='//*[@class="avg"]') %>%
+  html_text()
+avg2015 <- c(avg2015)
+avg2015 <- avg2015[-1]
+avg2015 <- as.numeric(avg2015)
+# The average player rating on the roster, out of 100:
+avg2015
+number2015 <- url %>%
+  read_html() %>%
+  html_nodes(xpath='//*[@class="number"]') %>%
+  html_text() %>%
+  as.numeric()
+number2015 <- c(number2015)
+# A "cumulative talent" rating - a weighted product of a team's roster size and the previously mentioned talent metrics:
+number2015
+teamtalent2015 <- data.frame(Year=2015,Name=team_names2015,Total=commit_count2015,StarPlayers=star_count2015,Avg=avg2015,Points=number2015)
+# Let's combine these columns scraped into a data frame!
+teamtalent2015
+new_cols <- str_split_fixed(teamtalent2015$StarPlayers,"[[:space:]]+",8)
+new_cols <- data.frame(new_cols)
+new_cols <- select(new_cols,c("X3","X5","X7"))
+colnames(new_cols) <- c("Five","Four","Three")
+# Time to clean up the first string and split it into 5 star, 4 star, and 3 star players:
+new_cols
+teamtalent2015 <- merge(teamtalent2015,new_cols,by.x=0,by.y=0)
+teamtalent2015$Total <- as.character(teamtalent2015$Total)
+teamtalent2015 <- mutate(teamtalent2015,Roster=parse_number(Total))
+teamtalent2015$Five <- parse_number(as.character(teamtalent2015$Five))
+teamtalent2015$Four <- parse_number(as.character(teamtalent2015$Four))
+teamtalent2015$Three <- parse_number(as.character(teamtalent2015$Three))
+teamtalent2015$Name <- parse_character(as.character(teamtalent2015$Name))
+# Now we can remove the extraneous or non-tidy attributes, and convert "Roster" into an attribute representing zero-star players by substracting five, four, and three-star players.
+teamtalent2015 <- teamtalent2015 %>%
+  select(-"Row.names") %>%
+  select(-Total) %>%
+  select(-StarPlayers) %>%
+  mutate(Zero=(Roster-Five-Four-Three)) %>%
+  select(-Roster)
+# Now this dataset is looking good!
+teamtalent2015
+# Let's get rid of those annoying Big Ten West teams by only allowing entities with the proper seven team names:
+teamtalent2015 <- teamtalent2015[ (teamtalent2015$Name %in% c("Maryland","Penn State","Ohio State","Michigan","Michigan State","Indiana","Rutgers")), ]
+teamtalent2015
+# Finally, we add the number of division wins in the year - there are no datasets to scrape for this, as only conference wins are tracked, which includes division and cross-divsion wins. For this, we'll use the following source to manually "scrape" the missing data: https://www.sports-reference.com/cfb/conferences/big-ten/2015-schedule.html
+div_wins <- c(3,1,4,1,5,1,6)
+div_winners <- c("Penn State","Rutgers","Michigan","Maryland","Ohio State","Indiana","Michigan State")
+dw2015 <- data.frame(div_winners,div_wins)
+dw2015$div_winners <- as.character(dw2015$div_winners)
+dw2015
+# Now let's put these frames together using data pipelines and a 'left join'!
+teamtalent2015 <- teamtalent2015 %>%
+  left_join(dw2015,by=c("Name" = "div_winners"))
+teamtalent2015
+```
+
+Fantastic! Now we have a 'tidy' dataset for the year 2015! (each row represents a single team, each column represents a single attribute for that team).
+
+This process then gets repeated for the seasons of 2016, 2017, 2018, and 2019, like so:
+
+```{r scrape_2016, include=TRUE}
+url <- "https://247sports.com/Season/2016-Football/CollegeTeamTalentComposite/?Conference=Big-Ten"
+team_names2016 <- url %>%
+  read_html() %>%
+  html_nodes(xpath='//*[@class="team"]') %>%
+  html_text()
+team_names2016 <- c(team_names2016)
+team_names2016 <- team_names2016[-1]
+commit_count2016 <- url %>%
+  read_html() %>%
+  html_nodes(xpath='//*[@class="total"]') %>%
+  html_text()
+commit_count2016 <- c(commit_count2016)
+commit_count2016 <- commit_count2016[-1]
+star_count2016 <- url %>%
+  read_html() %>%
+  html_nodes(xpath='//*[@class="star-commits-list"]') %>%
+  html_text()
+star_count2016 <- c(star_count2016)
+avg2016 <- url %>%
+  read_html() %>%
+  html_nodes(xpath='//*[@class="avg"]') %>%
+  html_text()
+avg2016 <- c(avg2016)
+avg2016 <- avg2016[-1]
+avg2016 <- as.numeric(avg2016)
+number2016 <- url %>%
+  read_html() %>%
+  html_nodes(xpath='//*[@class="number"]') %>%
+  html_text() %>%
+  as.numeric()
+number2016 <- c(number2016)
+teamtalent2016 <- data.frame(Year=2016,Name=team_names2016,Total=commit_count2016,StarPlayers=star_count2016,Avg=avg2016,Points=number2016)
+new_cols <- str_split_fixed(teamtalent2016$StarPlayers,"[[:space:]]+",8)
+new_cols <- data.frame(new_cols)
+new_cols <- select(new_cols,c("X3","X5","X7"))
+colnames(new_cols) <- c("Five","Four","Three")
+teamtalent2016 <- merge(teamtalent2016,new_cols,by.x=0,by.y=0)
+teamtalent2016$Total <- as.character(teamtalent2016$Total)
+teamtalent2016 <- mutate(teamtalent2016,Roster=parse_number(Total))
+teamtalent2016$Five <- parse_number(as.character(teamtalent2016$Five))
+teamtalent2016$Four <- parse_number(as.character(teamtalent2016$Four))
+teamtalent2016$Three <- parse_number(as.character(teamtalent2016$Three))
+teamtalent2016$Name <- parse_character(as.character(teamtalent2016$Name))
+teamtalent2016 <- teamtalent2016 %>%
+  select(-"Row.names") %>%
+  select(-Total) %>%
+  select(-StarPlayers) %>%
+  mutate(Zero=(Roster-Five-Four-Three)) %>%
+  select(-Roster)
+teamtalent2016 <- teamtalent2016[ (teamtalent2016$Name %in% c("Maryland","Penn State","Ohio State","Michigan","Michigan State","Indiana","Rutgers")), ]
+# See the original version comment: https://www.sports-reference.com/cfb/conferences/big-ten/2016-schedule.html
+div_wins <- c(5,0,5,2,5,3,1)
+div_winners <- c("Penn State","Rutgers","Michigan","Maryland","Ohio State","Indiana","Michigan State")
+dw2016 <- data.frame(div_winners,div_wins)
+dw2016$div_winners <- as.character(dw2016$div_winners)
+teamtalent2016 <- teamtalent2016 %>%
+  left_join(dw2016,by=c("Name" = "div_winners"))
+teamtalent2016
+```
+```{r scrape_2017, include=TRUE}
+url <- "https://247sports.com/Season/2017-Football/CollegeTeamTalentComposite/?Conference=Big-Ten"
+team_names2017 <- url %>%
+  read_html() %>%
+  html_nodes(xpath='//*[@class="team"]') %>%
+  html_text()
+team_names2017 <- c(team_names2017)
+team_names2017 <- team_names2017[-1]
+commit_count2017 <- url %>%
+  read_html() %>%
+  html_nodes(xpath='//*[@class="total"]') %>%
+  html_text()
+commit_count2017 <- c(commit_count2017)
+commit_count2017 <- commit_count2017[-1]
+star_count2017 <- url %>%
+  read_html() %>%
+  html_nodes(xpath='//*[@class="star-commits-list"]') %>%
+  html_text()
+star_count2017 <- c(star_count2017)
+avg2017 <- url %>%
+  read_html() %>%
+  html_nodes(xpath='//*[@class="avg"]') %>%
+  html_text()
+avg2017 <- c(avg2017)
+avg2017 <- avg2017[-1]
+avg2017 <- as.numeric(avg2017)
+number2017 <- url %>%
+  read_html() %>%
+  html_nodes(xpath='//*[@class="number"]') %>%
+  html_text() %>%
+  as.numeric()
+number2017 <- c(number2017)
+teamtalent2017 <- data.frame(Year=2017,Name=team_names2017,Total=commit_count2017,StarPlayers=star_count2017,Avg=avg2017,Points=number2017)
+new_cols <- str_split_fixed(teamtalent2017$StarPlayers,"[[:space:]]+",8)
+new_cols <- data.frame(new_cols)
+new_cols <- select(new_cols,c("X3","X5","X7"))
+colnames(new_cols) <- c("Five","Four","Three")
+teamtalent2017 <- merge(teamtalent2017,new_cols,by.x=0,by.y=0)
+teamtalent2017$Total <- as.character(teamtalent2017$Total)
+teamtalent2017 <- mutate(teamtalent2017,Roster=parse_number(Total))
+teamtalent2017$Five <- parse_number(as.character(teamtalent2017$Five))
+teamtalent2017$Four <- parse_number(as.character(teamtalent2017$Four))
+teamtalent2017$Three <- parse_number(as.character(teamtalent2017$Three))
+teamtalent2017$Name <- parse_character(as.character(teamtalent2017$Name))
+teamtalent2017 <- teamtalent2017 %>%
+  select(-"Row.names") %>%
+  select(-Total) %>%
+  select(-StarPlayers) %>%
+  mutate(Zero=(Roster-Five-Four-Three)) %>%
+  select(-Roster)
+teamtalent2017 <- teamtalent2017[ (teamtalent2017$Name %in% c("Maryland","Penn State","Ohio State","Michigan","Michigan State","Indiana","Rutgers")), ]
+# See the original version comment: https://www.sports-reference.com/cfb/conferences/big-ten/2017-schedule.html
+div_wins <- c(4,1,3,1,6,1,5)
+div_winners <- c("Penn State","Rutgers","Michigan","Maryland","Ohio State","Indiana","Michigan State")
+dw2017 <- data.frame(div_winners,div_wins)
+dw2017$div_winners <- as.character(dw2017$div_winners)
+teamtalent2017 <- teamtalent2017 %>%
+  left_join(dw2017,by=c("Name" = "div_winners"))
+teamtalent2017
+```
+```{r scrape_2018, include=TRUE}
+url <- "https://247sports.com/Season/2018-Football/CollegeTeamTalentComposite/?Conference=Big-Ten"
+team_names2018 <- url %>%
+  read_html() %>%
+  html_nodes(xpath='//*[@class="team"]') %>%
+  html_text()
+team_names2018 <- c(team_names2018)
+team_names2018 <- team_names2018[-1]
+commit_count2018 <- url %>%
+  read_html() %>%
+  html_nodes(xpath='//*[@class="total"]') %>%
+  html_text()
+commit_count2018 <- c(commit_count2018)
+commit_count2018 <- commit_count2018[-1]
+star_count2018 <- url %>%
+  read_html() %>%
+  html_nodes(xpath='//*[@class="star-commits-list"]') %>%
+  html_text()
+star_count2018 <- c(star_count2018)
+avg2018 <- url %>%
+  read_html() %>%
+  html_nodes(xpath='//*[@class="avg"]') %>%
+  html_text()
+avg2018 <- c(avg2018)
+avg2018 <- avg2018[-1]
+avg2018 <- as.numeric(avg2018)
+number2018 <- url %>%
+  read_html() %>%
+  html_nodes(xpath='//*[@class="number"]') %>%
+  html_text() %>%
+  as.numeric()
+number2018 <- c(number2018)
+teamtalent2018 <- data.frame(Year=2018,Name=team_names2018,Total=commit_count2018,StarPlayers=star_count2018,Avg=avg2018,Points=number2018)
+new_cols <- str_split_fixed(teamtalent2018$StarPlayers,"[[:space:]]+",8)
+new_cols <- data.frame(new_cols)
+new_cols <- select(new_cols,c("X3","X5","X7"))
+colnames(new_cols) <- c("Five","Four","Three")
+teamtalent2018 <- merge(teamtalent2018,new_cols,by.x=0,by.y=0)
+teamtalent2018$Total <- as.character(teamtalent2018$Total)
+teamtalent2018 <- mutate(teamtalent2018,Roster=parse_number(Total))
+teamtalent2018$Five <- parse_number(as.character(teamtalent2018$Five))
+teamtalent2018$Four <- parse_number(as.character(teamtalent2018$Four))
+teamtalent2018$Three <- parse_number(as.character(teamtalent2018$Three))
+teamtalent2018$Name <- parse_character(as.character(teamtalent2018$Name))
+teamtalent2018 <- teamtalent2018 %>%
+  select(-"Row.names") %>%
+  select(-Total) %>%
+  select(-StarPlayers) %>%
+  mutate(Zero=(Roster-Five-Four-Three)) %>%
+  select(-Roster)
+teamtalent2018 <- teamtalent2018[ (teamtalent2018$Name %in% c("Maryland","Penn State","Ohio State","Michigan","Michigan State","Indiana","Rutgers")), ]
+# See the original version comment: https://www.sports-reference.com/cfb/conferences/big-ten/2018-schedule.html
+div_wins <- c(3,0,5,1,6,2,4)
+div_winners <- c("Penn State","Rutgers","Michigan","Maryland","Ohio State","Indiana","Michigan State")
+dw2018 <- data.frame(div_winners,div_wins)
+dw2018$div_winners <- as.character(dw2018$div_winners)
+teamtalent2018 <- teamtalent2018 %>%
+  left_join(dw2018,by=c("Name" = "div_winners"))
+teamtalent2018
+```
+```{r scrape_2019, include=TRUE}
+url <- "https://247sports.com/Season/2019-Football/CollegeTeamTalentComposite/?Conference=Big-Ten"
+team_names2019 <- url %>%
+  read_html() %>%
+  html_nodes(xpath='//*[@class="team"]') %>%
+  html_text()
+team_names2019 <- c(team_names2019)
+team_names2019 <- team_names2019[-1]
+commit_count2019 <- url %>%
+  read_html() %>%
+  html_nodes(xpath='//*[@class="total"]') %>%
+  html_text()
+commit_count2019 <- c(commit_count2019)
+commit_count2019 <- commit_count2019[-1]
+star_count2019 <- url %>%
+  read_html() %>%
+  html_nodes(xpath='//*[@class="star-commits-list"]') %>%
+  html_text()
+star_count2019 <- c(star_count2019)
+avg2019 <- url %>%
+  read_html() %>%
+  html_nodes(xpath='//*[@class="avg"]') %>%
+  html_text()
+avg2019 <- c(avg2019)
+avg2019 <- avg2019[-1]
+avg2019 <- as.numeric(avg2019)
+number2019 <- url %>%
+  read_html() %>%
+  html_nodes(xpath='//*[@class="number"]') %>%
+  html_text() %>%
+  as.numeric()
+number2019 <- c(number2019)
+teamtalent2019 <- data.frame(Year=2019,Name=team_names2019,Total=commit_count2019,StarPlayers=star_count2019,Avg=avg2019,Points=number2019)
+new_cols <- str_split_fixed(teamtalent2019$StarPlayers,"[[:space:]]+",8)
+new_cols <- data.frame(new_cols)
+new_cols <- select(new_cols,c("X3","X5","X7"))
+colnames(new_cols) <- c("Five","Four","Three")
+teamtalent2019 <- merge(teamtalent2019,new_cols,by.x=0,by.y=0)
+teamtalent2019$Total <- as.character(teamtalent2019$Total)
+teamtalent2019 <- mutate(teamtalent2019,Roster=parse_number(Total))
+teamtalent2019$Five <- parse_number(as.character(teamtalent2019$Five))
+teamtalent2019$Four <- parse_number(as.character(teamtalent2019$Four))
+teamtalent2019$Three <- parse_number(as.character(teamtalent2019$Three))
+teamtalent2019$Name <- parse_character(as.character(teamtalent2019$Name))
+teamtalent2019 <- teamtalent2019 %>%
+  select(-"Row.names") %>%
+  select(-Total) %>%
+  select(-StarPlayers) %>%
+  mutate(Zero=(Roster-Five-Four-Three)) %>%
+  select(-Roster)
+teamtalent2019 <- teamtalent2019[ (teamtalent2019$Name %in% c("Maryland","Penn State","Ohio State","Michigan","Michigan State","Indiana","Rutgers")), ]
+# See the original version comment: https://www.sports-reference.com/cfb/conferences/big-ten/2019-schedule.html
+div_wins <- c(5,0,4,1,6,2,3)
+div_winners <- c("Penn State","Rutgers","Michigan","Maryland","Ohio State","Indiana","Michigan State")
+dw2019 <- data.frame(div_winners,div_wins)
+dw2019$div_winners <- as.character(dw2019$div_winners)
+teamtalent2019 <- teamtalent2019 %>%
+  left_join(dw2019,by=c("Name" = "div_winners"))
+teamtalent2019
+```
+
+Now, let's combine these five year data frames into a single, cleaned data frame, ready for exploration and analysis. 
+
+```{r concat, include=TRUE}
+master <- rbind(teamtalent2015,teamtalent2016,teamtalent2017,teamtalent2018,teamtalent2019)
+master
+```
+
+## Part 2: Exploratory Data Analysis
+
+Before we proceed with the fancy statistics and machine learning, a major part of the data science pipeline is exploratory data analysis. Simply put, this is visualizing the data in different ways to gain insights before we dive in. We begin with a simple scatterplot of the team's total talent points rating against the number of wins:
+
+```{r plot1, include=TRUE}
+ggplot(data=master,aes(x=Points,y=div_wins)) + geom_point() + labs(title="Total Talent vs. Division Wins, 2015-2019") + xlab("Composite Talent Rating") + ylab("Big Ten East Division Wins") + geom_smooth(method=lm)
+```
+
+Fascinating! We can see what appears to be a positive linear correlation between composite talent and division wins, although there appear to be some outliers in both the positive and negative direction. 
+
+Repeating with average player talent:
+
+```{r plot2, include=TRUE}
+ggplot(data=master,aes(x=Avg,y=div_wins)) + geom_point() + labs(title="Average Player Talent vs. Division Wins, 2015-2019") + xlab("Average Player Rating") + ylab("Big Ten East Division Wins") + geom_smooth(method=lm)
+```
+
+Here, we see a very similar trend, a strong positive correlation with some outliers. To look at an expected negative correlation, let's try the number of zero-star (unranked) recruits against division wins:
+
+```{r plot3, include=TRUE}
+ggplot(data=master,aes(x=Zero,y=div_wins)) + geom_point() + labs(title="Number of Unranked Players vs. Division Wins, 2015-2019") + xlab("Number of Unranked Players") + ylab("Big Ten East Division Wins") + geom_smooth(method=lm)
+```
+
+Here, we see a moderately negative correlation, with slightly lower variance than both of the first two predictors. For one last idea, let's use the color feature in ggplot to help us visualize if particular teams are responsible for some of this variance.
+
+```{r plot4, include=TRUE}
+ggplot(data=master,aes(x=Zero,y=div_wins,color=Name)) + geom_point() + labs(title="Number of Unranked Players vs. Division Wins, 2015-2019") + xlab("Number of Unranked Players") + ylab("Big Ten East Division Wins") + geom_smooth(method=lm)
+```
+
+Here, we see that Michigan and Penn State overperform the overall trendline on average, with higher numbers of unranked recruits than expected, while Maryland underperforms the trendline, with lower numbers of unranked recruits than expected. Also, Michigan State has massive variance compared to the other six teams.
+
+## Part 3: Hypothesis Testing and Machine Learning
+
+After viewing these plots, we can see what appears to be a linear trend involving all of the examined explanatory variables. This leads us to the third prong of the data science process, [hypothesis testing](https://www.britannica.com/science/statistics/Hypothesis-testing) and [machine learning](https://www.mathworks.com/discovery/machine-learning.html).
+
+Here, we will use the lm() function in R, that provides a solution to the optimization problem of linear regression. In machine learning terms, this is an efficient algorithm that minimizes loss, or "least-squares" (squared variance, or difference between the model and the result). If you have a strong background in calculus, you can read more about how this problem is solved with "gradient descent" [here](https://www.hcbravo.org/IntroDataSci/bookdown-notes/solving-linear-ml-problems.html).
+
+Let's begin with a Big Ten East wins model that factors in all six available predictors - average player rating, 247's "composite" team score, and the number of five-star, four-star, three-star, and unranked recruits on a roster. For this model, the null hypothesis will be that there is no correlation between any of these factors and success in the Big Ten East.
+
+```{r model1, include=TRUE}
+model1 <- lm(div_wins~Avg+Points+Five+Four+Three+Zero,data=master)
+summary(model1)
+```
+
+Let's consider the null hypothesis - that there is no linear correlation between the factors and Big Ten East wins. An adjusted $R^2$ of $0.5638$ tells us that, accounting for sequential variables, about 56.38% of Big Ten East success can be explained by this model. The p-value of about $3.2e-05$, less than the level of significance of $0.05$, leads us to reject the null hypothesis. There is a linear correlation between at least one of these factors and Big Ten East wins.
+
+However, one of the important assumptions in multiple linear regression is that each variable is related to the model. To be more precise, we are looking for a t-value for each explanatory variable (like five-star players) that leads to a p-value of less than $0.05$. High p-values like the ones in the model may be an indication of multicollinearity, or variables with overlap in predictive power. As we can see from the lm() output, there is no individual factor that comes close to that criteria. Let's consider, then, a reduced model. We'll remove the variable with the highest p-value or weakest individual correlation, zero-star recruits. 
+
+```{r model2, include=TRUE}
+model2 <- lm(div_wins~Avg+Points+Five+Four+Three,data=master)
+summary(model2)
+```
+
+Again, we reject the null hypothesis ($p=9.073e-06 < 0.05$), and the reduced values in the Pr(>|t|) column indicate that we have reduced multicollinearity in the reduced model. However, these p-values are still too high to support the assumptions of this model. Let's test a model with the 247 "average player rating" removed:
+
+``` {r model3, include=TRUE}
+model3 <- lm(div_wins~Points+Five+Four+Three,data=master)
+summary(model3)
+```
+
+Making progress, but still not there! ($p=2.269e-06$) Let's remove the 247 "composite team talent" rating and try to resolve this multicollinearity:
+
+``` {r model4, include=TRUE}
+model4 <- lm(div_wins~Five+Four+Three,data=master)
+summary(model4)
+```
+
+Now, we can see that two explanatory variables (four and three-star recruits) appear to satisfy the assumptions of the linear model ($p<0.05$). Thus, we remove the remaining variable, five-star recruits:
+
+``` {r model5, include=TRUE}
+model5 <- lm(div_wins~Four+Three,data=master)
+summary(model5)
+```
+
+At the 10% level of significance, we would retain three-star recruits in our model as an explanatory variable ($p~=0.09<0.1$), but since we are operating at the 5% level, we remove this variable from our model:
+
+``` {r model6, include=TRUE}
+model6 <- lm(div_wins~Four,data=master)
+summary(model6)
+```
+
+We are now operating in single linear regression, modeling the number of four-star recruits as the best predictor of Big Ten East success. We can see this reflected in the adjusted $R^2$ of each model, which hardly varies from about $0.57<R^2<0.62$. This indicates a high degree of multicollinearity in the previous models, or the idea that the other variables we explored had predictive overlap with the number of four-star recruits. Since the p-value for the model is $7.657e-08<0.05$, we reject the null hypothesis. 
+
+## Part 4: Conclusion and Takeaways
+
+At the 5% level of significance, we can say that the single best predictor of Big Ten East success, responsible for explaining about 58% of division wins, is the number of four-star recruits on a roster. On average, for each additional four-star recruit, a Big Ten East team wins $0.08389$ additional games, with an intercept (baseline) of $1.05383$ average division wins for a team with zero four-star recruits. 
+
+```{r conclusionchart, include=TRUE}
+ggplot(data=master,aes(x=Four,y=div_wins)) + geom_point() + labs(title="Four-Star Recruits vs.  Big Ten East success, 2015-2019") + xlab("Four-Star Recruits on Roster") + ylab("Big Ten East Division Wins") + geom_smooth(method=lm)
+```
+
+This has fascinating implications: in each of the examined linear models, four-star recruits had a larger per-recruit impact on a team's average division wins than did five-star recruits. At a qualitative level, this may stem from expected behavior of higher-level recruits: five-star recruits, as shown above, are considered to be more likely to play professional football. Thus, four-star recruits might stay with their team longer, and be more likely to play as upperclassmen, that are more likely to be [program starters](https://umterps.com/sports/football/stats). All of these possibilities are due for further exploration, but the result remains the same: four-star players have a higher impact on wins in the Big Ten East than do their five-star counterparts. 
+
+As of the time of this article's writing (May 18, 2020), the current four-star recruiting race in the [Big Ten East](https://247sports.com/Season/2021-Football/CompositeTeamRankings/?Conference=Big-Ten) for the class of 2021 is as follows:
+
+Ohio State - 10 four-star recruits
+
+Michigan/Penn State - 4 four-star recruits each
+
+Maryland - 3 four-star recruits
+
+Rutgers - 1 four-star recruit
+
+Michigan State/Indiana - 0 four-star recruits each
+
+This underscores a possible need for a paradigm shift in Big Ten East recruiting - by these early recruiting metrics and my fitted model, Ohio State's recruiting class of 2021 alone will be responsible for an additional $~0.5$ Big Ten East wins per year than their nearest rivals Penn State and Michigan, and an additional $~0.84$ division wins than Michigan State and Indiana. This might  not seem like much, but considering the six-game, high-variance nature of the division schedule, and the fact that this effect is multiplied by four, as  four years' recruiting classes make up a team's roster, this represents a massive talent gap. 
+
+Overall, I recommend to Big Ten East recruiters (in particular Maryland, my school) to prioritize four-star recruits over five-, three-, and zero-star counterparts, as they have been the key factor on the recruiting trail in predicting division success. 
